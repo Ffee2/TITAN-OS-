@@ -213,3 +213,8 @@ sudo bash install-pc.sh
 Debian 13 ARM64 is a development environment. A dedicated Debian installer is not currently available.
 
 **Important:** TITAN OS is currently a terminal-based software project, not a standalone bootable operating system. No bootable ISO is available yet.
+
+
+## License
+
+TITAN OS is licensed under the [MIT License](LICENSE). Copyright (c) 2026 BARATH.
