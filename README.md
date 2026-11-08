@@ -1,6 +1,6 @@
 <div align="center">
 
-# ⚡ TITAN OS
+# TITAN OS
 
 ### A powerful terminal-first Linux environment
 
@@ -16,17 +16,17 @@
 
 ---
 
-## 🖥️ Preview
+## Preview
 
 ![TITAN OS running in Termux](screenshots/Screenshot_20261108_114858_Termux.jpg)
 
 ---
 
-## 🚀 About TITAN OS
+## About TITAN OS
 
 TITAN OS is a terminal-first Linux environment and system toolkit project designed to bring useful system tools, package management and diagnostics together.
 
-### ✨ Features
+### Features
 
 | Component | Description |
 |---|---|
@@ -40,7 +40,7 @@ TITAN OS is a terminal-first Linux environment and system toolkit project design
 
 ---
 
-## 📥 Download & Install
+## Download & Install
 
 ### Android — Termux
 
@@ -81,7 +81,7 @@ Installation adds TITAN commands to Termux. It does not replace Android.
 
 ---
 
-## ⚙️ Build Native Engine
+## Build Native Engine
 
 From the project directory:
 
@@ -97,7 +97,7 @@ Run the native engine:
 
 ---
 
-## 🧰 Available Commands
+## Available Commands
 
 ### Package manager
 
@@ -121,7 +121,7 @@ titan battery
 
 ---
 
-## 🖥️ Platform Support
+## Platform Support
 
 - **Android:** Termux command-line environment.
 - **Debian:** Development through PRoot.
@@ -141,7 +141,7 @@ Contributions, testing and suggestions are welcome.
 
 ---
 
-## 👨‍💻 Creator
+## Creator
 
 **BARATH**
 
@@ -151,7 +151,7 @@ Created with curiosity, code and determination.
 
 <div align="center">
 
-### ⚡ TITAN OS
+### TITAN OS
 **BUILD • EXPLORE • IMPROVE**
 
 </div>
