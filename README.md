@@ -155,3 +155,7 @@ Created with curiosity, code and determination.
 **BUILD • EXPLORE • IMPROVE**
 
 </div>
+
+## Installation Requirements
+
+See [REQUIREMENTS.md](REQUIREMENTS.md) for platform requirements and installation instructions.
