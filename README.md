@@ -159,3 +159,57 @@ Created with curiosity, code and determination.
 ## Installation Requirements
 
 See [REQUIREMENTS.md](REQUIREMENTS.md) for platform requirements and installation instructions.
+
+
+---
+
+## System Requirements
+
+### Android (Termux)
+
+**Minimum requirements**
+- Android device with Termux installed
+- Internet connection
+- Git
+
+**Optional development tools**
+- Clang
+- Make
+
+Install dependencies:
+
+```bash
+pkg update -y && pkg install git clang make -y
+```
+
+Install TITAN OS:
+
+```bash
+git clone https://github.com/Ffee2/TITAN-OS-.git
+cd TITAN-OS-
+bash install-android.sh
+```
+
+### Arch Linux PC
+
+**Requirements**
+- Arch Linux or supported Arch-based distribution
+- x86_64 architecture
+- Root privileges
+- Pacman and pacman-conf
+- Configured repositories
+- Internet connection
+
+Install:
+
+```bash
+git clone https://github.com/Ffee2/TITAN-OS-.git
+cd TITAN-OS-
+sudo bash install-pc.sh
+```
+
+### Debian PRoot
+
+Debian 13 ARM64 is a development environment. A dedicated Debian installer is not currently available.
+
+**Important:** TITAN OS is currently a terminal-based software project, not a standalone bootable operating system. No bootable ISO is available yet.
