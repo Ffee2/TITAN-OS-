@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+# Path: titan/bin/titan  -  TITAN OS system command
+# shellcheck disable=SC1091
+set -uo pipefail
+
+TITAN_SELF="$(readlink -f "${BASH_SOURCE[0]}")"
+TITAN_ROOT="${TITAN_ROOT:-$(cd "$(dirname "$TITAN_SELF")/../.." && pwd)}"
+export TITAN_ROOT
+. "$TITAN_ROOT/core/lib/common.sh"
+for f in performance/perf battery/battery storage/storage network/basic security/basic; do
+  . "$TITAN_ROOT/core/$f.sh"
+done
+for f in system perf device; do
+  . "$TITAN_ROOT/titan/commands/$f.sh"
+done
+
+titan_usage() {
+  cat <<USAGE
+titan $TITAN_VERSION - system command for $TITAN_NAME
+
+Usage: titan COMMAND [OPTIONS]
+
+  info               system overview
+  enter              enter isolated TITAN Debian environment
+  rootfs             enter TITAN RootFS
+  status             quick health snapshot
+  monitor            live view  [-i SECONDS] [--once]
+  performance        performance summary  [profile [NAME]]
+  battery            battery level and state
+  thermal            temperature sensors
+  storage            disk usage and cache sizes
+  memory             RAM and swap
+  cpu                processor details
+  gpu                graphics detection
+  processes          top processes  [-n COUNT]
+  security           defensive security checks
+  network            network summary
+  logs               titan or ti logs  [titan|ti] [-n COUNT]
+  doctor             check what this system lets TITAN OS read
+
+Unreadable data is reported as "unavailable"; nothing is invented.
+USAGE
+}
+
+titan_native_cmd() {
+  local native="$TITAN_ROOT/build/titan-native"
+  case "${1:-}" in
+    info|cpu|memory|storage|network|processes|battery) ;;
+    *) return 1 ;;
+  esac
+  [ "$#" -eq 1 ] || return 1
+  [ -x "$native" ] || return 1
+  "$native" "$1"
+}
+
+cmd="${1:-help}"; [ $# -gt 0 ] && shift
+case "$cmd" in
+  help|-h|--help) titan_usage ;;
+  --version|version) echo "titan $TITAN_VERSION ($TITAN_NAME, created by $TITAN_AUTHOR)" ;;
+  info|battery|storage|memory|cpu|processes|network)
+    if ! titan_native_cmd "$cmd" "$@"; then "titan_cmd_$cmd" "$@"; fi ;;
+  status|monitor|performance|thermal|gpu|security|logs|doctor)
+    "titan_cmd_$cmd" "$@" ;;
+  enter|rootfs)
+    if ! command -v proot-distro >/dev/null 2>&1; then
+      die "proot-distro is not installed"
+    fi
+    exec proot-distro login --isolated titan
+    ;;
+  *) die "unknown command: $cmd (see 'titan --help')" ;;
+esac

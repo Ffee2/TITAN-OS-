@@ -1,0 +1,38 @@
+# Build output
+build/
+
+# Local backups
+backup/
+
+# Temporary files
+*.tmp
+*.log
+*.bak
+*.swp
+*~
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Backup copies
+*.backup
+*.pre-*
+*.old
+*.orig
+
+# All backup variants
+*.bak*
+*.backup*
+/install.sh
+
+# Unfinished scripts
+/android/setup.sh
+/android/launcher.sh

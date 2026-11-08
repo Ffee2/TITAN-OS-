@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -u
+
+SCRIPT_PATH="$(readlink -f -- "${BASH_SOURCE[0]}")" || {
+    echo "[error] Cannot resolve ti launcher path." >&2
+    exit 1
+}
+
+DIR="$(cd -- "$(dirname -- "$SCRIPT_PATH")" && pwd)"
+
+if [ -r /etc/os-release ]; then
+    . /etc/os-release
+    case " ${ID:-} ${ID_LIKE:-} " in
+        *" arch "*|*" archlinux "*|*" archarm "*)
+            exec bash "$DIR/../backend/pacman-cli.sh" "$@"
+            ;;
+    esac
+fi
+
+exec bash "$DIR/ti-apt" "$@"

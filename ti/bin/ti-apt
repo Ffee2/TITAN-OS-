@@ -1,0 +1,214 @@
+#!/usr/bin/env bash
+# Path: ti/bin/ti  -  TI package manager for TITAN OS
+# Backend: Debian APT/DPKG (documented honestly; not an independent ecosystem).
+# shellcheck disable=SC1091
+set -uo pipefail
+
+TI_SELF="$(readlink -f "${BASH_SOURCE[0]}")"
+TITAN_ROOT="${TITAN_ROOT:-$(cd "$(dirname "$TI_SELF")/../.." && pwd)}"
+export TITAN_ROOT
+. "$TITAN_ROOT/core/lib/common.sh"
+. "$TITAN_ROOT/ti/backend/apt.sh"
+. "$TITAN_ROOT/ti/backend/history.sh"
+. "$TITAN_ROOT/ti/backend/repo.sh"
+
+TI_VERSION="0.2.0"
+
+usage() {
+  cat <<USAGE
+ti $TI_VERSION - package manager for $TITAN_NAME (backend: Debian APT/DPKG)
+
+Usage: ti [-y] COMMAND [ARGS]
+
+Packages:
+  add PACKAGE...      install packages
+  remove PACKAGE...   remove packages (asks for confirmation)
+  search QUERY        search available packages
+  info PACKAGE        show package details
+  list [FILTER]       list installed packages
+  update              refresh package indexes
+  upgrade             upgrade installed packages
+  autoremove          remove unused dependencies (asks for confirmation)
+  clean               clear the downloaded package cache
+  doctor              check package system health
+  history [COUNT]     show ti operation history
+
+Repositories (signed repositories only):
+  repo list
+  repo add NAME URL SUITE COMPONENT... --key KEYFILE
+  repo remove NAME
+
+Options:
+  -y, --yes           skip ti's own confirmation prompts
+  --help, --version
+USAGE
+}
+
+parse_flags() {
+  ARGS=()
+  local a
+  for a in "$@"; do
+    case "$a" in
+      -y|--yes) TITAN_ASSUME_YES=1; export TITAN_ASSUME_YES ;;
+      *) ARGS+=("$a") ;;
+    esac
+  done
+}
+
+cmd_add() {
+  [ $# -ge 1 ] || die "usage: ti add PACKAGE..."
+  local p cand
+  for p in "$@"; do
+    be_valid_pkg "$p" || die "invalid package name: $p"
+    cand=$(be_candidate "$p")
+    if [ -z "$cand" ] || [ "$cand" = "(none)" ]; then
+      die "'$p' has no installable candidate for $(titan_arch); try 'ti update' or 'ti search'"
+    fi
+  done
+  log_info "installing: $* (architecture: $(titan_arch))"
+  if be_apt install "$@"; then ti_history_add add "$*" ok
+  else ti_history_add add "$*" failed; return 1; fi
+}
+
+cmd_remove() {
+  [ $# -ge 1 ] || die "usage: ti remove PACKAGE..."
+  local p
+  for p in "$@"; do
+    be_valid_pkg "$p" || die "invalid package name: $p"
+    be_is_protected "$p" && die "'$p' is protected: removing it can break the system"
+    be_installed "$p" || die "'$p' is not installed"
+  done
+  echo "Packages that would be removed:"
+  be_simulate remove "$@"
+  titan_confirm "Remove these packages?" || { log_info "cancelled, nothing removed"; return 1; }
+  if be_priv apt-get remove -y "$@"; then ti_history_add remove "$*" ok
+  else ti_history_add remove "$*" failed; return 1; fi
+}
+
+cmd_search() {
+  [ $# -ge 1 ] || die "usage: ti search QUERY"
+  case "$1" in -*) die "query must not start with '-'" ;; esac
+  apt-cache search "$1"
+}
+
+cmd_info() {
+  local p="${1:-}"
+  [ -n "$p" ] || die "usage: ti info PACKAGE"
+  be_valid_pkg "$p" || die "invalid package name: $p"
+  local out; out=$(apt-cache show "$p" 2>/dev/null)
+  [ -n "$out" ] || die "no information for '$p' (try 'ti update')"
+  printf '%s\n' "$out" | awk '/^$/{exit} /^[^ ]/{p=($0 ~ /^(Package|Version|Architecture|Installed-Size|Depends|Homepage|Description):/)} p{print}'
+  if be_installed "$p"; then echo "Installed: yes"; else echo "Installed: no"; fi
+}
+
+cmd_list() {
+  local f="${1:-}"
+  dpkg-query -W -f='${db:Status-Abbrev}\t${Package}\t${Version}\t${Architecture}\n' |
+    awk -F'\t' -v f="$f" '$1 ~ /^ii/ && (f=="" || index(tolower($2), tolower(f))) {printf "%-32s %-24s %s\n", $2, $3, $4}'
+}
+
+cmd_update() {
+  log_info "refreshing package indexes (signatures are verified by APT)"
+  if be_priv apt-get update; then ti_history_add update - ok
+  else ti_history_add update - failed; return 1; fi
+}
+
+cmd_upgrade() {
+  if be_apt upgrade; then ti_history_add upgrade - ok
+  else ti_history_add upgrade - failed; return 1; fi
+}
+
+cmd_autoremove() {
+  local list; list=$(be_simulate autoremove)
+  [ -n "$list" ] || { log_info "nothing to remove"; return 0; }
+  echo "Unused packages that would be removed:"; printf '%s\n' "$list"
+  titan_confirm "Remove these packages?" || { log_info "cancelled, nothing removed"; return 1; }
+  if be_priv apt-get autoremove -y; then ti_history_add autoremove - ok
+  else ti_history_add autoremove - failed; return 1; fi
+}
+
+cmd_clean() {
+  local d="${PREFIX:-}/var/cache/apt/archives" size="unknown"
+  [ -d "$d" ] && size=$(du -sh "$d" 2>/dev/null | cut -f1)
+  echo "Downloaded package cache: $size ($d)"
+  echo "This removes only cached .deb downloads, not installed packages or your files."
+  titan_confirm "Clear the package cache?" || { log_info "cancelled"; return 1; }
+  if be_priv apt-get clean; then ti_history_add clean - ok
+  else ti_history_add clean - failed; return 1; fi
+}
+
+cmd_doctor() {
+  local fails=0 warns=0 f n
+  d_ok()   { printf '%s[ ok ]%s %s\n'   "$C_CYAN"   "$C_RESET" "$*"; }
+  d_warn() { printf '%s[warn]%s %s\n'   "$C_YELLOW" "$C_RESET" "$*"; warns=$((warns+1)); }
+  d_fail() { printf '%s[fail]%s %s\n'   "$C_RED"    "$C_RESET" "$*"; fails=$((fails+1)); }
+
+  if [ "$(titan_arch)" = unsupported ]; then d_fail "unsupported architecture: $(uname -m)"
+  else d_ok "architecture: $(titan_arch) on $(titan_platform)"; fi
+
+  if be_check 2>/dev/null; then d_ok "backend tools present (apt-get, apt-cache, dpkg-query)"
+  else d_fail "backend tools missing"; fi
+
+  if [ "$(id -u)" -eq 0 ] || titan_is_termux || have_cmd sudo; then d_ok "privilege path available"
+  else d_fail "need root or sudo to change packages"; fi
+
+  n=0
+  for f in "$TI_APT_ETC/sources.list" "$TI_SOURCES_D"/*.list "$TI_SOURCES_D"/*.sources; do
+    [ -f "$f" ] && n=$((n + $(grep -cE '^(deb |URIs:)' "$f")))
+  done
+  if [ "$n" -gt 0 ]; then d_ok "$n configured repository line(s)"; else d_fail "no repositories configured"; fi
+
+  if have_cmd dpkg; then
+    if [ -z "$(dpkg --audit 2>&1)" ]; then d_ok "dpkg audit clean"
+    else d_fail "dpkg reports problems; run: dpkg --audit"; fi
+  fi
+
+  local chk; chk=$(apt-get check 2>&1); n=$?
+  if [ "$n" -eq 0 ]; then d_ok "no broken dependencies"
+  elif printf '%s' "$chk" | grep -qi 'unmet'; then d_fail "unmet dependencies; try: ti upgrade"
+  else d_warn "dependency check could not run (permissions or lock)"; fi
+
+  if mkdir -p "$TITAN_STATE_DIR" 2>/dev/null && [ -w "$TITAN_STATE_DIR" ]; then
+    d_ok "log directory writable: $TITAN_STATE_DIR"
+  else d_warn "log directory not writable: $TITAN_STATE_DIR"; fi
+
+  echo "summary: $fails failure(s), $warns warning(s)"
+  [ "$fails" -eq 0 ]
+}
+
+cmd_repo() {
+  local sub="${1:-}"; [ $# -gt 0 ] && shift
+  case "$sub" in
+    list)   repo_list ;;
+    add)    repo_add "$@" ;;
+    remove) repo_remove "$@" ;;
+    *)      die "usage: ti repo list | add | remove" ;;
+  esac
+}
+
+main() {
+  parse_flags "$@"
+  set -- "${ARGS[@]+"${ARGS[@]}"}"
+  local cmd="${1:-}"; [ $# -gt 0 ] && shift
+  case "$cmd" in
+    ""|-h|--help|help) usage; return 0 ;;
+    --version|version) echo "ti $TI_VERSION ($TITAN_NAME $TITAN_VERSION, backend: apt/dpkg)"; return 0 ;;
+  esac
+  be_check || die "required backend tools are missing"
+  case "$cmd" in
+    add)        cmd_add "$@" ;;
+    remove)     cmd_remove "$@" ;;
+    search)     cmd_search "$@" ;;
+    info)       cmd_info "$@" ;;
+    list)       cmd_list "$@" ;;
+    update)     cmd_update ;;
+    upgrade)    cmd_upgrade ;;
+    autoremove) cmd_autoremove ;;
+    clean)      cmd_clean ;;
+    doctor)     cmd_doctor ;;
+    history)    ti_history_show "$@" ;;
+    repo)       cmd_repo "$@" ;;
+    *)          die "unknown command: $cmd (see 'ti --help')" ;;
+  esac
+}
+main "$@"
