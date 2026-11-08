@@ -25,3 +25,8 @@ TITAN OS is under active development. A bootable independent OS ISO is not yet a
 
 ## License
 No license selected yet.
+
+
+## TITAN OS Preview
+
+![TITAN OS running in Termux](screenshots/Screenshot_20261108_114858_Termux.jpg)
